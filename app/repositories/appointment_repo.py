@@ -1,72 +1,66 @@
 import sqlite3
-from datetime import date
+from datetime import datetime
 
-from app.domain.patient import Patient
-from app.repositories.base import PatientRepository
+from app.domain.appointment import Appointment, AppointmentStatus
+from app.domain.exceptions import SlotUnavailable
+from app.repositories.base import AppointmentRepository
 
-COLS = "id, full_name, date_of_birth, gender, phone, address, active"
-
-
-def _to_patient(row) -> Patient:
-    return Patient(id=row[0], full_name=row[1], date_of_birth=date.fromisoformat(row[2]),
-                   gender=row[3], phone=row[4], address=row[5], active=bool(row[6]))
+COLS = "id, patient_id, doctor_id, start_time, status"
 
 
-def _escape_like(text: str) -> str:
-    """Make % and _ typed by the user match literally instead of acting as wildcards."""
-    return text.replace("\\", "\\\\").replace("%", "\\%").replace("_", "\\_")
+def _to_appointment(row) -> Appointment:
+    return Appointment(id=row[0], patient_id=row[1], doctor_id=row[2],
+                       start_time=datetime.fromisoformat(row[3]),
+                       status=AppointmentStatus(row[4]))
 
 
-class SqlitePatientRepo(PatientRepository):
+class SqliteAppointmentRepo(AppointmentRepository):
     def __init__(self, conn: sqlite3.Connection):
         self._conn = conn
 
-    def get(self, patient_id):
+    def _many(self, sql, params=()):
+        return [_to_appointment(r) for r in self._conn.execute(sql, params).fetchall()]
+
+    def get(self, appointment_id):
         row = self._conn.execute(
-            f"SELECT {COLS} FROM patients WHERE id = ?", (patient_id,)).fetchone()
-        return _to_patient(row) if row else None
+            f"SELECT {COLS} FROM appointments WHERE id = ?", (appointment_id,)).fetchone()
+        return _to_appointment(row) if row else None
 
-    def search(self, query):
-        q = query.strip()
-        if not q:
-            sql, params = (f"SELECT {COLS} FROM patients WHERE active = 1 "
-                           "ORDER BY full_name LIMIT 50"), ()
-        else:
-            like = f"%{_escape_like(q)}%"
-            sql = (f"SELECT {COLS} FROM patients WHERE active = 1 AND "
-                   "(full_name LIKE ? ESCAPE '\\' OR phone LIKE ? ESCAPE '\\' OR id = ?) "
-                   "ORDER BY full_name LIMIT 50")
-            params = (like, like, int(q) if q.isdigit() else -1)
-        return [_to_patient(r) for r in self._conn.execute(sql, params).fetchall()]
-
-    def find_duplicate(self, phone, date_of_birth):
+    def doctor_has_conflict(self, doctor_id, start_time):
         row = self._conn.execute(
-            f"SELECT {COLS} FROM patients WHERE phone = ? AND date_of_birth = ? AND active = 1 "
-            "LIMIT 1", (phone, date_of_birth.isoformat())).fetchone()
-        return _to_patient(row) if row else None
+            "SELECT 1 FROM appointments WHERE doctor_id = ? AND start_time = ? "
+            "AND status = 'Scheduled'", (doctor_id, start_time.isoformat())).fetchone()
+        return row is not None
 
-    def add(self, patient):
-        cur = self._conn.execute(
-            "INSERT INTO patients (full_name, date_of_birth, gender, phone, address, active) "
-            "VALUES (?, ?, ?, ?, ?, ?)",
-            (patient.full_name, patient.date_of_birth.isoformat(), patient.gender,
-             patient.phone, patient.address, int(patient.active)))
+    def list_all(self):
+        return self._many(f"SELECT {COLS} FROM appointments ORDER BY start_time LIMIT 200")
+
+    def list_for_patient(self, patient_id):
+        return self._many(f"SELECT {COLS} FROM appointments WHERE patient_id = ? "
+                          "ORDER BY start_time DESC", (patient_id,))
+
+    def list_for_doctor_on_date(self, doctor_id, day):
+        return self._many(f"SELECT {COLS} FROM appointments WHERE doctor_id = ? "
+                          "AND substr(start_time, 1, 10) = ? ORDER BY start_time",
+                          (doctor_id, day.isoformat()))
+
+    def add(self, appointment):
+        try:
+            cur = self._conn.execute(
+                "INSERT INTO appointments (patient_id, doctor_id, start_time, status) "
+                "VALUES (?, ?, ?, ?)",
+                (appointment.patient_id, appointment.doctor_id,
+                 appointment.start_time.isoformat(), appointment.status.value))
+        except sqlite3.IntegrityError as err:
+            if "UNIQUE" in str(err):          # the unique-slot index caught a race
+                raise SlotUnavailable("The doctor is already booked at that time.") from err
+            raise
         self._conn.commit()
-        patient.id = cur.lastrowid
-        return patient
+        appointment.id = cur.lastrowid
+        return appointment
 
-    def update(self, patient):
-        self._conn.execute(
-            "UPDATE patients SET full_name = ?, gender = ?, phone = ?, address = ? WHERE id = ?",
-            (patient.full_name, patient.gender, patient.phone, patient.address, patient.id))
+    def update_status(self, appointment_id, status):
+        self._conn.execute("UPDATE appointments SET status = ? WHERE id = ?",
+                           (status.value, appointment_id))
         self._conn.commit()
-        return patient
-
-    def set_active(self, patient_id, active):
-        self._conn.execute("UPDATE patients SET active = ? WHERE id = ?",
-                           (int(active), patient_id))
-        self._conn.commit()
-
-#Commit message
-#Implement appointments repository
 
