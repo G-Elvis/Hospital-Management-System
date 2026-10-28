@@ -1,8 +1,4 @@
-"""Serves the built Vue front end (frontend/dist) under /app/.
-
-Any path that is not a real file falls back to index.html so client-side routing
-(refreshing /app/doctor, for example) keeps working.
-"""
+"""Serves the built Vue front end (frontend/dist) under /app/."""
 from pathlib import Path
 
 from flask import Blueprint, current_app, send_from_directory

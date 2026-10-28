@@ -1,7 +1,8 @@
 <script setup>
 import { computed, reactive } from 'vue'
 import { useRoute } from 'vue-router'
-import { useCareSyncStore } from '../stores/careSync'
+import { useAuthStore } from '../stores/auth'
+import { useClinicStore } from '../stores/clinic'
 import PublicHeader from '../components/PublicHeader.vue'
 import BrandMark from '../components/BrandMark.vue'
 import heroImage from '../assets/figma/care-hero.png'
@@ -10,7 +11,8 @@ import teamTwo from '../assets/figma/doctor-jake.png'
 import teamThree from '../assets/figma/doctor-laura.png'
 
 const route = useRoute()
-const store = useCareSyncStore()
+const auth = useAuthStore()
+const store = useClinicStore()
 const page = computed(() => route.meta.page)
 const contact = reactive({ name: '', email: '', message: '', audience: 'Patient' })
 
@@ -35,12 +37,9 @@ function sendContact() {
         <img :src="heroImage" alt="A doctor caring for a patient" />
         <div class="landing-copy">
           <p>A platform where you can manage appointments, patients and healthcare services.</p>
-          <RouterLink class="button button-primary hero-cta" to="/register">Get started</RouterLink>
-          <div class="quick-links">
-            <RouterLink to="/appointments/new">Book appointments</RouterLink>
-            <RouterLink to="/patient/reports">View reports</RouterLink>
-            <RouterLink to="/doctor/chat">Chat with doctors</RouterLink>
-          </div>
+          <RouterLink class="button button-primary hero-cta" :to="auth.home || '/login'">{{
+            auth.home ? 'Go to dashboard' : 'Log in'
+          }}</RouterLink>
         </div>
       </section>
     </main>
@@ -181,6 +180,6 @@ function sendContact() {
       </nav>
       <span>© 2026 CareSync</span>
     </footer>
-    <div v-if="store.lastNotice" class="toast" role="status">{{ store.lastNotice }}</div>
+    <div v-if="store.notice" class="toast" role="status">{{ store.notice }}</div>
   </div>
 </template>

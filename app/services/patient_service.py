@@ -3,7 +3,7 @@ from datetime import date
 from app.domain.exceptions import NotFound, PossibleDuplicate
 from app.domain.patient import Patient
 from app.repositories.base import PatientRepository
-from app.validators.patient_validators import PatientValidator, normalise_phone
+from app.validators.patient_validator import PatientValidator, normalise_phone
 
 
 class PatientService:

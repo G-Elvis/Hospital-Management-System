@@ -1,89 +1,146 @@
 <script setup>
-import { computed } from 'vue'
-import { useRouter } from 'vue-router'
+import { computed, onMounted, reactive, ref } from 'vue'
+import { useRoute } from 'vue-router'
+
 import DashboardHeader from '../components/DashboardHeader.vue'
-import { useCareSyncStore } from '../stores/careSync'
+import InitialsAvatar from '../components/InitialsAvatar.vue'
+import { useClinicStore } from '../stores/clinic'
+import { formatDate } from '../utils/datetime'
 
-const store = useCareSyncStore()
-const router = useRouter()
-const upcomingAppointments = computed(() =>
-  store.upcomingAppointments.map((appointment) => ({
-    ...appointment,
-    doctor: store.doctors.find((doctor) => doctor.id === appointment.doctorId),
-  })),
-)
+const route = useRoute()
+const clinic = useClinicStore()
+const patientId = Number(route.params.id)
 
-function cancel(appointment) {
-  store.selectedAppointmentId = appointment.id
-  router.push('/appointments/cancel')
+const tabs = ['Medical records', 'Prescriptions']
+const activeTab = ref(tabs.includes(route.query.tab) ? route.query.tab : tabs[0])
+const patient = ref(null)
+const records = ref([])
+const loading = ref(true)
+const loadError = ref('')
+const showForm = ref(false)
+const form = reactive({ diagnosis: '', treatment: '', prescription: '' })
+const errors = ref([])
+const busy = ref(false)
+
+const prescriptions = computed(() => records.value.filter((item) => item.prescription))
+
+// "2026-11-02T09:30" -> "2 November 2026, 09:30"
+function when(createdAt) {
+  const [date, time] = createdAt.split('T')
+  return `${formatDate(date)}, ${time}`
 }
+
+async function load() {
+  records.value = await clinic.loadRecords(patientId)
+}
+
+async function addRecord() {
+  errors.value = []
+  busy.value = true
+  try {
+    await clinic.addRecord(patientId, { ...form })
+    await load()
+    form.diagnosis = form.treatment = form.prescription = ''
+    showForm.value = false
+    clinic.notify('Record added to the patient’s history.')
+  } catch (failure) {
+    errors.value = failure.errors.length ? failure.errors : [failure.message]
+  } finally {
+    busy.value = false
+  }
+}
+
+onMounted(async () => {
+  try {
+    ;[patient.value] = await Promise.all([clinic.getPatient(patientId), load()])
+  } catch (failure) {
+    loadError.value = failure.message
+  } finally {
+    loading.value = false
+  }
+})
 </script>
 
 <template>
   <main class="dashboard-page">
-    <DashboardHeader show-back />
-    <section class="service-strip">
-      <article>
-        <div>
-          <h2>Book your appointment</h2>
-          <p>Please note this is a paid service</p>
-        </div>
-        <RouterLink class="button button-muted" to="/appointments/new">Book now</RouterLink>
-      </article>
-      <article>
-        <div>
-          <h2>View your Medical Report</h2>
-          <p>Lab results / Image reports</p>
-          <small>Please note this is a paid service</small>
-        </div>
-        <RouterLink class="button button-muted" to="/patient/reports">View results</RouterLink>
-      </article>
-    </section>
-    <section class="patient-dashboard-grid">
-      <div class="doctor-list">
-        <h1>Find your Doctor</h1>
-        <p class="subtle-text">(50 specialist)</p>
-        <article v-for="doctor in store.doctors" :key="doctor.id" class="doctor-row">
-          <img :src="doctor.photo" :alt="doctor.name" />
-          <div class="doctor-info">
-            <h2>{{ doctor.name }}</h2>
-            <p class="subtle-text">{{ doctor.specialty }}</p>
-            <p>{{ doctor.description }}</p>
-            <RouterLink
-              class="button button-muted"
-              :to="{ name: 'appointment-booking', query: { doctor: doctor.id } }"
-              >Book now</RouterLink
-            >
-          </div>
-        </article>
-      </div>
-      <aside class="appointments-panel">
-        <h2>My appointments</h2>
-        <article
-          v-for="appointment in upcomingAppointments"
-          :key="appointment.id"
-          class="appointment-card"
-        >
-          <img :src="appointment.doctor?.photo" alt="" />
-          <div class="appointment-card-person">
-            <strong>{{ appointment.doctor?.name }}</strong>
-            <span>{{ appointment.doctor?.specialty }}</span>
-          </div>
-          <button
-            class="button button-muted danger-button"
-            type="button"
-            @click="cancel(appointment)"
-          >
-            Cancel
-          </button>
-          <div class="appointment-date">
-            <small>Date &amp; Time</small
-            ><strong>{{ appointment.date }}, {{ appointment.time }}</strong>
-          </div>
-        </article>
-        <p v-if="!upcomingAppointments.length" class="empty-state">No upcoming appointments yet.</p>
+    <DashboardHeader />
+    <div class="dashboard-top-links">
+      <RouterLink class="button button-muted" to="/doctor">Back</RouterLink>
+    </div>
+    <p v-if="loading" class="empty-state">Loading…</p>
+    <p v-else-if="loadError" class="form-error" role="alert">{{ loadError }}</p>
+    <div v-else class="history-layout">
+      <aside class="history-patient-card">
+        <InitialsAvatar :name="patient.full_name" :size="92" />
+        <h2>{{ patient.full_name }}</h2>
+        <p>{{ patient.gender }} · born {{ formatDate(patient.date_of_birth) }}</p>
+        <span class="time-pill">{{ patient.phone }}</span>
       </aside>
-    </section>
-    <div v-if="store.lastNotice" class="toast" role="status">{{ store.lastNotice }}</div>
+      <section class="history-main">
+        <div class="tabs">
+          <button
+            v-for="tab in tabs"
+            :key="tab"
+            type="button"
+            :class="{ active: activeTab === tab }"
+            @click="activeTab = tab"
+          >
+            {{ tab }}
+          </button>
+        </div>
+        <section class="history-panel">
+          <template v-if="activeTab === 'Medical records'">
+            <h2>Medical records</h2>
+            <article v-for="record in records" :key="record.id" class="record-box">
+              <strong>{{ record.diagnosis }}</strong>
+              <span>{{ when(record.created_at) }} · {{ record.doctor_name }}</span>
+              <p v-if="record.treatment">Treatment: {{ record.treatment }}</p>
+            </article>
+            <p v-if="!records.length" class="empty-state">No records yet for this patient.</p>
+          </template>
+          <template v-else>
+            <h2>Prescriptions</h2>
+            <article v-for="record in prescriptions" :key="record.id" class="prescription-row">
+              <div>
+                <strong>{{ record.prescription }}</strong
+                ><small>For {{ record.diagnosis }} · {{ record.doctor_name }}</small>
+              </div>
+              <b>{{ when(record.created_at) }}</b>
+            </article>
+            <p v-if="!prescriptions.length" class="empty-state">No prescriptions recorded.</p>
+          </template>
+          <button
+            v-if="!showForm"
+            class="button button-primary add-prescription"
+            type="button"
+            @click="showForm = true"
+          >
+            Add record
+          </button>
+          <form v-else class="prescription-form record-form" @submit.prevent="addRecord">
+            <label
+              >Diagnosis<input v-model.trim="form.diagnosis" required maxlength="5000"
+            /></label>
+            <label
+              >Treatment<textarea v-model.trim="form.treatment" rows="2" maxlength="5000" />
+            </label>
+            <label
+              >Prescription<textarea v-model.trim="form.prescription" rows="2" maxlength="5000" />
+            </label>
+            <ul v-if="errors.length" class="form-errors" role="alert">
+              <li v-for="message in errors" :key="message">{{ message }}</li>
+            </ul>
+            <div>
+              <button class="button button-primary" type="submit" :disabled="busy">
+                {{ busy ? 'Saving…' : 'Save record' }}</button
+              ><button class="button button-muted" type="button" @click="showForm = false">
+                Cancel
+              </button>
+            </div>
+          </form>
+        </section>
+      </section>
+    </div>
+    <div v-if="clinic.notice" class="toast" role="status">{{ clinic.notice }}</div>
   </main>
 </template>

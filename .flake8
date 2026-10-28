@@ -1,0 +1,5 @@
+[flake8]
+max-line-length = 100
+exclude = .venv,__pycache__,htmlcov
+per-file-ignores =
+    tests/*:E501

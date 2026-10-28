@@ -1,38 +1,45 @@
 <script setup>
-import { computed, reactive, ref } from 'vue'
+import { reactive, ref } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
-import { useCareSyncStore } from '../stores/careSync'
+
 import BrandMark from '../components/BrandMark.vue'
 import watermark from '../assets/figma/medical-watermark.png'
+import { ROLE_HOME, useAuthStore } from '../stores/auth'
 
 const route = useRoute()
 const router = useRouter()
-const store = useCareSyncStore()
-const form = reactive({
-  firstName: '',
-  lastName: '',
-  specialty: '',
-  licence: '',
-  email: '',
-  password: '',
-})
-const page = computed(() => route.meta.page)
-const registering = computed(() => page.value.startsWith('register'))
-const doctor = ref(page.value === 'register-doctor')
-const heading = computed(() => {
-  if (page.value === 'forgot-password') return 'Forgot password?'
-  if (registering.value) return 'Create an Account'
-  return 'Welcome back!'
-})
+const auth = useAuthStore()
 
-function submit() {
-  if (page.value === 'forgot-password') {
-    store.notify('If this email is registered, a reset link would be sent. This is a demo.')
-    return
+const form = reactive({ username: '', password: '' })
+const error = ref('')
+const busy = ref(false)
+
+// Only follow a "?redirect=" that stays inside the app.
+function safeRedirect() {
+  const target = route.query.redirect
+  return typeof target === 'string' && target.startsWith('/') && !target.startsWith('//')
+    ? target
+    : ''
+}
+
+async function submit() {
+  error.value = ''
+  busy.value = true
+  try {
+    const user = await auth.login(form.username.trim(), form.password)
+    const home = ROLE_HOME[user.role]
+    if (!home) {
+      await auth.logout()
+      error.value = 'Administrator accounts do not have a screen in the web app yet.'
+      return
+    }
+    router.push(safeRedirect() || home)
+  } catch (failure) {
+    error.value = failure.message
+  } finally {
+    form.password = ''
+    busy.value = false
   }
-  const accountRole = registering.value ? (doctor.value ? 'doctor' : 'patient') : 'patient'
-  store.signIn(accountRole)
-  router.push(accountRole === 'doctor' ? '/doctor' : '/patient')
 }
 </script>
 
@@ -41,63 +48,28 @@ function submit() {
     <BrandMark />
     <RouterLink class="button button-muted auth-back" to="/">Back</RouterLink>
     <form class="auth-card" @submit.prevent="submit">
-      <h1>{{ heading }}</h1>
-      <template v-if="registering">
-        <div class="role-switch">
-          <RouterLink :class="{ selected: !doctor }" to="/register" @click="doctor = false"
-            >Patient</RouterLink
-          >
-          <RouterLink :class="{ selected: doctor }" to="/register/doctor" @click="doctor = true"
-            >Doctor</RouterLink
-          >
-        </div>
-        <label
-          >First name<input v-model.trim="form.firstName" required autocomplete="given-name"
-        /></label>
-        <label
-          >Last name<input v-model.trim="form.lastName" required autocomplete="family-name"
-        /></label>
-        <label v-if="doctor">Specialty<input v-model.trim="form.specialty" required /></label>
-        <label v-if="doctor">Licence number<input v-model.trim="form.licence" required /></label>
-      </template>
-      <p v-if="page === 'forgot-password'" class="auth-description">
-        Enter your email and we will send you a link to reset your password.
-      </p>
+      <h1>Welcome back!</h1>
+      <p v-if="auth.notice && !error" class="inline-notice" role="status">{{ auth.notice }}</p>
       <label
-        >Email<input v-model.trim="form.email" type="email" required autocomplete="email"
+        >Username<input
+          v-model.trim="form.username"
+          required
+          autocomplete="username"
+          autocapitalize="none"
+          spellcheck="false"
       /></label>
-      <label v-if="page === 'login' || registering"
+      <label
         >Password<input
           v-model="form.password"
           type="password"
-          minlength="6"
           required
-          :autocomplete="registering ? 'new-password' : 'current-password'"
+          autocomplete="current-password"
       /></label>
-      <RouterLink
-        v-if="page === 'login'"
-        class="text-link forgot-link"
-        to="/forgot-password"
-        >Forgot password?</RouterLink
-      >
-      <button class="button button-primary auth-submit" type="submit">
-        {{
-          page === 'forgot-password' ? 'Send reset link' : registering ? 'Create Account' : 'Log in'
-        }}
+      <p v-if="error" class="form-error" role="alert">{{ error }}</p>
+      <button class="button button-primary auth-submit" type="submit" :disabled="busy">
+        {{ busy ? 'Logging in…' : 'Log in' }}
       </button>
-      <p v-if="page === 'login'" class="auth-bottom">
-        Do not have an account? <RouterLink to="/register">Register</RouterLink>
-      </p>
-      <p v-if="registering" class="auth-bottom">
-        Already have an account? <RouterLink to="/login">Log in</RouterLink>
-      </p>
-      <RouterLink v-if="page === 'forgot-password'" class="text-link auth-bottom" to="/login"
-        >Back to log in</RouterLink
-      >
-      <p v-if="store.lastNotice" class="inline-notice" role="status">{{ store.lastNotice }}</p>
-      <p class="demo-note">
-        Demo interface only — no real authentication or password reset is performed.
-      </p>
+      <p class="auth-bottom">Accounts are created by your administrator.</p>
     </form>
   </main>
 </template>

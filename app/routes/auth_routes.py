@@ -2,31 +2,29 @@ from flask import Blueprint, flash, redirect, render_template, request, session,
 
 from app.domain.exceptions import AuthenticationError
 from app.routes._helpers import svc
-from app.security.permissions import login_required
 
 bp = Blueprint("auth", __name__)
 
 
 @bp.get("/")
-@login_required
 def dashboard():
-    return render_template("dashboard.html")
+    return redirect("/app/")                # the Vue front end owns the dashboards
 
 
 @bp.route("/login", methods=["GET", "POST"])
 def login():
-    if request.method == "POST":
-        try:
-            user = svc("auth_service").login(request.form.get("username", ""),
-                                             request.form.get("password", ""))
-        except AuthenticationError as err:
-            flash(str(err), "error")
-            return render_template("login.html"), 401
-        session.clear()                    # fresh session on login (prevents fixation)
-        session["user_id"] = user.id
-        session.permanent = True           # enables the 15-minute inactivity timeout
-        return redirect(url_for("auth.dashboard"))
-    return render_template("login.html")
+    if request.method == "GET":
+        return redirect("/app/login")       # the Vue front end owns the login screen
+    try:
+        user = svc("auth_service").login(request.form.get("username", ""),
+                                         request.form.get("password", ""))
+    except AuthenticationError as err:
+        flash(str(err), "error")
+        return render_template("login.html"), 401
+    session.clear()                        # fresh session on login (prevents fixation)
+    session["user_id"] = user.id
+    session.permanent = True               # enables the 15-minute inactivity timeout
+    return redirect(url_for("auth.dashboard"))
 
 
 @bp.post("/logout")

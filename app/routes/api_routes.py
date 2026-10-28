@@ -10,6 +10,7 @@ from app.routes._helpers import parse_date, parse_time, svc
 from app.security.csrf import _token
 from app.security.permissions import role_required
 from app.services.booking_rules import SLOT_TIMES
+from app.validators.patient_validator import GENDERS
 
 bp = Blueprint("api", __name__, url_prefix="/api")
 
@@ -119,6 +120,12 @@ def slots():
     return jsonify(slots=[t.strftime("%H:%M") for t in SLOT_TIMES])
 
 
+@bp.get("/genders")
+@role_required("RECEPTIONIST", "DOCTOR")
+def genders():
+    return jsonify(genders=list(GENDERS))
+
+
 @bp.get("/doctors")
 @role_required("RECEPTIONIST", "DOCTOR")
 def doctors():
@@ -132,6 +139,17 @@ def doctors():
 def patients():
     found = svc("patient_service").search(request.args.get("q", ""))
     return jsonify(patients=[_patient(p) for p in found])
+
+
+@bp.post("/patients")
+@role_required("RECEPTIONIST")
+def register_patient():
+    data = request.get_json(silent=True) or {}
+    created = svc("patient_service").register(
+        str(data.get("full_name", "")), parse_date(data.get("date_of_birth")),
+        str(data.get("gender", "")), str(data.get("phone", "")), str(data.get("address", "")),
+        confirm_duplicate=data.get("confirm_duplicate") is True)
+    return jsonify(patient=_patient(created)), 201
 
 
 @bp.get("/patients/<int:patient_id>")

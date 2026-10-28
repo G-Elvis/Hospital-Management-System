@@ -3,7 +3,7 @@ from datetime import date, timedelta
 import pytest
 
 from app.domain.exceptions import ValidationError
-from app.validators.patient_validators import PatientValidator, normalise_phone
+from app.validators.patient_validator import PatientValidator, normalise_phone
 
 validator = PatientValidator()
 GOOD_DOB = date(1990, 5, 1)

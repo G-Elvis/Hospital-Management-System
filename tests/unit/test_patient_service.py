@@ -7,7 +7,7 @@ from app.domain.exceptions import NotFound, PossibleDuplicate, ValidationError
 from app.domain.patient import Patient
 from app.repositories.base import PatientRepository
 from app.services.patient_service import PatientService
-from app.validators.patient_validators import PatientValidator
+from app.validators.patient_validator import PatientValidator
 
 DOB = date(1990, 5, 1)
 

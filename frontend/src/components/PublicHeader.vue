@@ -1,5 +1,8 @@
 <script setup>
 import BrandMark from './BrandMark.vue'
+import { useAuthStore } from '../stores/auth'
+
+const auth = useAuthStore()
 </script>
 
 <template>
@@ -9,7 +12,8 @@ import BrandMark from './BrandMark.vue'
       <RouterLink to="/">Home</RouterLink>
       <RouterLink to="/about">About</RouterLink>
       <RouterLink to="/contact">Contact</RouterLink>
-      <RouterLink to="/login">Log in</RouterLink>
+      <RouterLink :to="auth.home || '/login'">{{ auth.home ? 'Dashboard' : 'Log in' }}</RouterLink>
     </nav>
   </header>
 </template>
+

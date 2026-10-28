@@ -2516,3 +2516,124 @@ select:focus-visible {
     grid-template-columns: 1fr 1fr;
   }
 }
+
+/* ---- screens backed by the Flask API ------------------------------------------------ */
+.initials-avatar {
+  display: grid;
+  flex: 0 0 auto;
+  place-items: center;
+  width: var(--avatar-size, 54px);
+  height: var(--avatar-size, 54px);
+  border-radius: 50%;
+  background: var(--sky);
+  color: #164b3c;
+  font-family: var(--heading);
+  font-size: calc(var(--avatar-size, 54px) * 0.36);
+  font-weight: 500;
+  user-select: none;
+}
+.initials-avatar-square {
+  border-radius: 30px;
+}
+
+.form-error,
+.form-errors {
+  margin: 12px 0;
+  color: #8b3434;
+  font-size: 14px;
+  text-align: center;
+}
+.form-errors {
+  padding-left: 20px;
+  text-align: left;
+}
+.form-warning {
+  display: grid;
+  gap: 8px;
+  justify-items: start;
+  margin: 12px 0;
+  border-radius: 18px;
+  padding: 12px 16px;
+  background: rgba(255, 255, 255, 0.7);
+  color: #6b4a12;
+  font-size: 14px;
+}
+.form-warning p {
+  margin: 0;
+}
+
+/* selects and textareas that sit next to the already-styled text inputs */
+.profile-fields select,
+.booking-patient input,
+.booking-patient select,
+.booking-doctor-picker select,
+.doctor-dash-side input,
+.record-form textarea {
+  width: 100%;
+  min-height: 42px;
+  border: 0;
+  border-radius: 26px;
+  padding: 10px 18px;
+  background: var(--grey);
+  color: #222;
+  font: inherit;
+  font-size: 15px;
+}
+.record-form textarea {
+  border-radius: 22px;
+  resize: vertical;
+}
+.profile-fields input[readonly] {
+  cursor: default;
+}
+
+.register-form .profile-fields {
+  margin-bottom: 24px;
+}
+.register-form .button-primary {
+  margin: 8px auto 0;
+  display: flex;
+}
+.record-form {
+  grid-template-columns: 1fr;
+  align-items: stretch;
+}
+
+.booking-patient {
+  display: grid;
+  grid-template-columns: 1fr 1fr auto;
+  gap: 16px;
+  align-items: end;
+  max-width: 900px;
+  margin: 22px auto 0;
+  padding: 0 10px;
+}
+.booking-patient label,
+.booking-doctor-picker {
+  display: grid;
+  gap: 6px;
+  font-size: 14px;
+}
+.booking-doctor-picker {
+  width: 100%;
+  margin-top: 16px;
+  text-align: left;
+}
+.patient-finder {
+  display: grid;
+  gap: 10px;
+}
+.patient-finder .wide-button {
+  margin-bottom: 0;
+  font-size: 15px;
+}
+.button:disabled {
+  cursor: not-allowed;
+  opacity: 0.65;
+}
+
+@media (max-width: 720px) {
+  .booking-patient {
+    grid-template-columns: 1fr;
+  }
+}
